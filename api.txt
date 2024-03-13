@@ -1,0 +1,72 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const uuid = require('uuid');
+const mysql = require('mysql');
+
+const app = express();
+const port = 35000;
+
+// Middleware
+app.use(bodyParser.json());
+app.use(cors()); // Ajout de CORS
+
+
+
+
+
+
+// Connexion à la base de données
+const db = mysql.createConnection({
+  host: 'localhost',
+  user: 'saajal',
+  password: 'root',
+  database: 'saajal'
+});
+
+// Votre route POST /register
+app.post('/register', (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Tous les champs sont requis' });
+  }
+
+  // Vérification si l'utilisateur existe déjà
+  db.query('SELECT * FROM users WHERE username = ? OR email = ?', [username, email], (err, result) => {
+    if (err) {
+      console.error('Erreur lors de la requête SQL:', err);
+      return res.status(500).json({ error: 'Erreur lors de la requête SQL' });
+    }
+
+    if (result.length > 0) {
+      return res.status(409).json({ error: 'Nom d\'utilisateur ou email déjà utilisé' });
+    }
+
+    // Hash du mot de passe
+    bcrypt.hash(password, 10, (hashErr, hash) => {
+      if (hashErr) {
+        console.error('Erreur lors du hashage du mot de passe:', hashErr);
+        return res.status(500).json({ error: 'Erreur lors du hashage du mot de passe' });
+      }
+
+      // Génération d'un UUID
+      const userId = uuid.v4();
+
+      // Insertion dans la base de données
+      db.query('INSERT INTO users (id, username, email, password) VALUES (?, ?, ?, ?)', [userId, username, email, hash], (insertErr) => {
+        if (insertErr) {
+          console.error('Erreur lors de l\'insertion en base de données:', insertErr);
+          return res.status(500).json({ error: 'Erreur lors de l\'insertion en base de données' });
+        }
+
+        res.status(201).json({ message: 'Utilisateur enregistré avec succès' });
+      });
+    });
+  });
+});
+
+app.listen(port, () => {
+  console.log(`Serveur démarré sur le port ${port}`);
+});
